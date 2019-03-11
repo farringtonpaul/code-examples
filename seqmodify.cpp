@@ -158,7 +158,6 @@ fldNumListsMatch(vector<int> &as, vector<int> &wf)
 	return matched;
 }
 
-// new...............
 void
 makeNotFoundVector(vector<NotFoundSeq> &nfsVec, vector<int> &a, vector<int> &w)
 {
@@ -230,104 +229,6 @@ logNotFoundVector(vector<NotFoundSeq> &nfsVec)
 		str += "\n";
 	}
 	printf("%s", str.c_str());
-}
-
-bool
-specValsInW(vector<int> &a, vector<int> &w)
-{
-	logVecs(a, w);
-	vector<NotFoundSeq> nfsVec;
-
-	makeNotFoundVector(nfsVec, a, w);
-
-	printf("specValsInW, a size=%u, w size=%u, nfsVec.size=%u\n"
-			, a.size(), w.size(), nfsVec.size());
-
-	if (nfsVec.size() == 0)
-		return true;
-
-	if (nfsVec.size())
-	{
-		logNotFoundVector(nfsVec);
-		vector<NotFoundSeq>::iterator nfsIt;
-		// each sequence is either:
-		// i) starting at position 1
-		// ii) ending at end of vector a (not exclusive of i)
-		// iii) sandwiched between found elements
-		//
-		// if (i) then vector w must begin with a sequence of 0's
-		//  at least as long as the not-found sequence.
-		// if (ii) then vector w must end with a sequence of 0's
-		//  at least as long as the not-found sequence.
-		// if (iii) then there are found positions before and
-		//  after the sequence. the distance between them in
-		//  vector w must be at least the same as the distance
-		//  between them in vector a.
-		//
-		// return false for any failing case, otherwise return
-		// true at the bottom.
-		for (nfsIt = nfsVec.begin(); nfsIt != nfsVec.end(); nfsIt++)
-		{
-			unsigned int len = ((*nfsIt).end - (*nfsIt).start) + 1;
-			if (w.size() < len)
-				return false;
-			if ((*nfsIt).start == 1)
-			{
-				// case i)
-				printf("case i: ");
-				for (unsigned int i = 0; i < len; i++)
-				{
-					if (w[i] != 0)
-					{
-						printf("fail\n");
-						return false;
-					}
-				}
-				printf("good\n");
-			}
-			else if ((*nfsIt).end == (int)a.size())
-			{
-				// case ii)
-				printf("case ii: ");
-				for (unsigned int i = 1; i <= len; i++)
-				{
-					unsigned int idx = (w.size() - i);
-					if (w[idx] != 0)
-					{
-						printf("fail\n");
-						return false;
-					}
-				}
-				printf("good\n");
-			}
-			else
-			{
-				// case iii)
-				printf("case iii: ");
-				int beforePosA = (*nfsIt).start - 1;
-				int afterPosA = (*nfsIt).end + 1;
-				int beforeVal = a[beforePosA-1];
-				int afterVal = a[afterPosA-1];
-				int beforePosW = 0;
-				int afterPosW = 0;
-				for (unsigned int i = 0; i < w.size(); i++)
-				{
-					if (w[i] == beforeVal)
-						beforePosW = i+1;
-					else if (w[i] == afterVal)
-						afterPosW = i+1;
-				}
-				if ((afterPosW-beforePosW) < (afterPosA-beforePosA))
-				{
-					printf("fail\n");
-					return false;
-				}
-				printf("good\n");
-			}
-		}
-	}
-
-	return true;
 }
 
 // call this after any non-zero values in w that aren't in a
@@ -501,8 +402,6 @@ fixingW(vector<int> &a, vector<int> &w, int &pos)
 	return false;
 }
 
-// new...............
-
 // make a list of everything in the suspect vector that
 // is not represented in the reference vector
 void
@@ -563,132 +462,6 @@ findPosMatchedVals(unsigned int start, vector<int> &as, vector<int> &wf
 		asPos = savedASPos;
 	}
 	return (changed);
-}
-
-// return 1-based index of the position in wf vector AFTER which
-// we can insert a 0 element
-int
-figureWhereToAdd(vector<int> &as, vector<int> &wf)
-{
-	logVecs(as, wf);
-
-	// as vector has more entries than wf vector.
-	// find list of possible additions (things appearing in
-	// as vector that don't appear in the wf vector)
-	vector<int> possibles;
-	findPossibles(possibles, as, wf);
-	logPossibles(possibles, "Possible additions");
-
-	vector<int>::iterator it;
-	bool look = false;
-	for (it = wf.begin(); it != wf.end(); it++)
-	{
-		if ((*it) == 0)
-		{
-			look = true;
-			break;
-		}
-	}
-
-	// it may be that we've already inserted a 0 in wf for
-	// one or more of the possibles. try to trim the possibles
-	// list. If a 0 in wf corresponds to the position of a
-	// value X in the possibles list, and some later non-zero value
-	// Y is at the same position in both as and wf, then we can
-	// remove value X from the possibles list.
-	unsigned int asPos = 0, wfPos = 0;
-	int knownWFVal;
-	unsigned int start = 0;
-	while (look)
-	{
-		if (findPosMatchedVals(start, as, wf, knownWFVal, asPos, wfPos))
-		{
-			if (asPos == wfPos && wfPos > start)
-			{
-				// first position with matching values is greater
-				// than one. that must mean that position 1 in
-				// wf is 0. If possibles[0] < knownWFVal, we can
-				// remove it from possibles
-				// new
-				while (possibles[0] < knownWFVal)
-					possibles.erase(possibles.begin());
-				logPossibles(possibles, "Revised additions");
-				start = wfPos;
-				continue;
-			}
-			look = false;
-		}
-		else
-			look = false;
-	}
-
-	// simplest case is if we can add on the end. scan forward
-	// through both vectors, to see if each entry in wf either is 
-	// 0 or matches the corresponding entry in as. if we get to the
-	// end of wf, we can just append
-	bool mismatch = false;
-	for (unsigned int i = 0; i < wf.size(); i++)
-	{
-		if (wf[i] == 0 || wf[i] == as[i])
-			continue;
-		mismatch = true;
-		break;
-	}
-	if (!mismatch)
-		return wf.size();
-
-	// find highest field num in wf that is not in possibles and is
-	// less than the lowest number in possibles. return
-	// that number. we can add after it.
-	int lowestPoss = possibles[0];
-	int target = 0;
-	int targetPos = -1;
-	for (int i = (wf.size()-1); i >= 0; i--)
-	{
-		if (wf[i] == 0)
-			continue;
-		if (wf[i] < lowestPoss)
-		{
-			target = wf[i];
-			targetPos = i+1;
-			break;
-		}
-	}
-
-	// if we didn't find a point to insert after, it means we
-	// have to insert at the head
-	if (targetPos == -1)
-		targetPos = 0;
-
-	return targetPos;
-}
-
-// return 1-based index of element in wf vector that can be deleted
-int
-figureWhereToRemove(vector<int> &as, vector<int> &wf)
-{
-	logVecs(as, wf);
-
-	// wf vector has more entries than as vector.
-	// find list of possible subtractions (things appearing in
-	// wf vector that don't appear in the as vector)
-	vector<int> possibles;
-	findPossibles(possibles, wf, as);
-	logPossibles(possibles, "Possible removals");
-
-	// if we know the number of a possible being removed,
-	// return the position of that
-	if (possibles.size())
-	{
-		int remFld = possibles[0];
-		for (unsigned int i = 0; i <= wf.size()-1; i++)
-		{
-			if (wf[i] == remFld)
-				return (i+1);
-		}
-	}
-
-	return removeZeros(as, wf);
 }
 
 int
@@ -810,76 +583,6 @@ insPos(int pos, vector<int> &vec)
 // the logic to reconcile the vectors, including
 // lots of debug printing
 //---------------------------------------------------------------
-void fixVectorsOld(vector<int> &a, vector<int> &w)
-{
-	printf("===========================================\n");
-	bool match = fldNumListsMatch(a, w);
-	printf("fldNumListsMatch returned %s\n"
-			, (match ? "true" : "false"));
-	// if actual (w) has labeled fields that aren't listed in
-	// config (a), then we should delete them.
-	int pos = 0;
-	vector<int> possibles;
-	findPossibles(possibles, w, a);
-	while (possibles.size())
-	{
-		logPossibles(possibles, "In Actual, not config");
-		pos = figureWhereToRemove(a, w);
-		if (pos < 0)
-			break;
-		delPos(pos, w);
-		findPossibles(possibles, w, a);
-		logPossibles(possibles, "Now, in Actual, not config");
-	}
-
-	//if (a.size() == w.size())
-	if (fldNumListsMatch(a, w))	// new
-		printf("OK, were done!\n");
-	else
-	{
-		//specValsInW(a, w);	// new
-		//while (a.size() > w.size())
-		while (!specValsInW(a, w))	// new
-		{
-			pos = figureWhereToAdd(a, w);
-			if (pos > -1)
-			{
-				printf("result: insert after position %d\n", pos);
-				insPos(pos, w);
-			}
-			else
-			{
-				printf("ERROR: cannot resolve, maybe done adding\n");
-				//FailCount++;
-				break;
-			}
-		}
-		while (a.size() < w.size())
-		//while (!fldNumListsMatch(a, w))	// new
-		{
-			pos = figureWhereToRemove(a, w);
-			if (pos > -1)
-			{
-				printf("result: delete position %d\n", pos);
-				delPos(pos, w);
-			}
-			else
-			{
-				FailCount++;
-				printf("ERROR: cannot resolve\n");
-				break;
-			}
-		}
-	}
-	logVecs(a, w);
-	if (!fldNumListsMatch(a, w))
-	{
-		printf("ERROR: vectors out of sync\n");
-		FailCount++;
-	}
-}
-
-// new..............................
 void fixVectors(vector<int> &a, vector<int> &w)
 {
 	printf("===========================================\n");
@@ -950,7 +653,6 @@ void fixVectors(vector<int> &a, vector<int> &w)
 			printf("OK, were done!\n");
 	}
 }
-// new..............................
 
 //---------------------------------------------------------------
 // main test program
